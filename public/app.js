@@ -1,261 +1,44 @@
 'use strict';
 
-const COLORS = {
-  claude: '#d97757',
-  codex: '#4f9cf9',
-  donut: ['#d97757', '#4f9cf9', '#46c481', '#e4b54c', '#9b7ede', '#e0564f', '#5ad0c6', '#c0c5d4'],
-};
+const COLORS={claude:'#e07a58',codex:'#5aa7ff',donut:['#e07a58','#5aa7ff','#58cf8b','#f0bf5c','#a98bea','#ef7770','#59cfc4','#a1a9b8']};
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let summary=null,lastGood=null,sourceFilter='all',period='daily',metric='tokens',sortKey='cost',sortDir='desc',periodChart=null,modelChart=null;
+const $=id=>document.getElementById(id);
+const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node};
 
-let summary = null;
-let sourceFilter = 'all'; // all | claude | codex
-let period = 'daily';
-let metric = 'tokens';
-let periodChart = null;
-let modelChart = null;
+function fmtTokens(n){n=Number(n)||0;if(n>=1e9)return(n/1e9).toFixed(2)+'B';if(n>=1e6)return(n/1e6).toFixed(2)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return Math.round(n).toLocaleString('ko-KR')}
+function fmtCost(n){return'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtNum(n){return(Number(n)||0).toLocaleString('ko-KR')}
+function clampPct(n){return Math.min(100,Math.max(0,Number(n)||0))}
+function pick(v){return sourceFilter==='all'?{tokens:v.claude.tokens+v.codex.tokens,cost:v.claude.cost+v.codex.cost}:v[sourceFilter]}
+function dateTime(ts){return new Date(ts).toLocaleString('ko-KR',{month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function relativeTime(ts){const ms=ts-Date.now();if(ms<=0)return'곧 리셋';const mins=Math.ceil(ms/60000),days=Math.floor(mins/1440),hours=Math.floor((mins%1440)/60),rest=mins%60;if(days)return`${days}일 ${hours}시간 후 리셋`;if(hours)return`${hours}시간 ${rest}분 후 리셋`;return`${rest}분 후 리셋`}
+function sourceName(s){return s==='claude'?'Claude':'Codex'}
+function sumRows(rows){return rows.reduce((a,v)=>{const p=pick(v);a.tokens+=p.tokens;a.cost+=p.cost;return a},{tokens:0,cost:0})}
 
-// ---------- 포맷터 ----------
-function fmtTokens(n) {
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return String(Math.round(n));
-}
-function fmtCost(n) {
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-function fmtNum(n) { return n.toLocaleString('ko-KR'); }
-function fmtDateTime(ts) {
-  return new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+function comparison(key,current){if(key==='total')return null;const daily=summary.daily;if(!daily||daily.length<30)return null;let prior;if(key==='today')prior=pick(daily[daily.length-2]);else if(key==='week')prior=sumRows(daily.slice(-14,-7));else prior=sumRows(daily.slice(-30,-Math.max(1,new Date().getDate())));if(!prior||prior.tokens<=0)return null;return((current.tokens-prior.tokens)/prior.tokens)*100}
+function renderKPI(){const root=$('kpiCards');root.replaceChildren();const items=[['today','오늘'],['week','이번 주'],['month','이번 달'],['total','전체 기간']];for(const[key,label]of items){const raw=summary.kpi[key],v=pick(raw),card=el('article','card');card.append(el('div','card-label',label),el('div','card-value',`${fmtTokens(v.tokens)} 토큰`),el('div','card-cost',`API 환산 ${fmtCost(v.cost)}`));const trend=comparison(key,v),trendEl=el('div','card-trend');if(key==='total')trendEl.textContent='수집된 전체 로컬 기록';else if(trend===null)trendEl.textContent='비교 데이터 부족';else{const up=trend>=0;trendEl.classList.add(up?'up':'down');trendEl.textContent=`${up?'↑ 증가':'↓ 감소'} ${Math.abs(trend).toFixed(0)}% · 직전 동등 기간 대비`}card.append(trendEl);if(sourceFilter==='all'){const total=raw.claude.tokens+raw.codex.tokens,cp=total?raw.claude.tokens/total*100:0,split=el('div','split'),bar=el('div','split-bar'),ct=el('span'),xt=el('span');ct.style.width=cp+'%';xt.style.width=(100-cp)+'%';bar.append(ct,xt);const text=el('div','split-text');text.append(el('span','',`Claude ${cp.toFixed(0)}%`),el('span','',`Codex ${(100-cp).toFixed(0)}%`));split.append(bar,text);card.append(split)}root.append(card)}root.setAttribute('aria-busy','false')}
 
-function pick(v) {
-  // v = {claude:{tokens,cost}, codex:{tokens,cost}}
-  if (sourceFilter === 'all') {
-    return { tokens: v.claude.tokens + v.codex.tokens, cost: v.claude.cost + v.codex.cost };
-  }
-  return v[sourceFilter];
-}
+function threshold(p){return p>=90?['danger','한도 임박']:p>=70?['warn','주의 필요']:['','여유 있음']}
+function gauge(label,used,detail,reset){const pct=clampPct(used),remain=100-pct,[state,copy]=threshold(pct),row=el('div','limit-row'),top=el('div','limit-top'),meta=el('div','limit-meta'),track=el('div','gauge'),fill=el('div',`gauge-fill ${state}`);top.append(el('span','limit-label',label),el('strong','remaining',`${remain.toFixed(0)}% 남음`));meta.append(el('span',`state-copy ${state}`,`${copy} · ${pct.toFixed(1)}% 사용`),el('span','',reset||detail||''));fill.style.width=pct+'%';track.setAttribute('role','progressbar');track.setAttribute('aria-label',`${label}, ${remain.toFixed(0)}% 남음, ${pct.toFixed(1)}% 사용`);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax','100');track.setAttribute('aria-valuenow',pct.toFixed(1));track.append(fill);row.append(top,meta,track);if(detail&&reset)row.append(el('p','note',detail));return row}
+function renderPlan(){const c=summary.plan.claude;$('claudePlanName').textContent=c.plan?`${c.plan} 플랜`:'플랜 미확인';$('claudeGauges').replaceChildren(gauge('최근 5시간',c.pct5h,`${fmtTokens(c.last5hTokens)} / ${fmtTokens(c.limit5hTokens)} 토큰`),gauge('최근 7일',c.pct7d,`${fmtTokens(c.last7dTokens)} / ${fmtTokens(c.limit7dTokens)} 토큰`));$('claudeEstimateNote').textContent=c.limitIsEstimate?'공식 한도가 로그에 없어 과거 관측 최대 사용량을 기준으로 계산합니다. config.json에서 한도를 직접 지정할 수 있습니다.':'config.json에 지정한 사용자 한도를 기준으로 계산합니다.';const x=summary.plan.codex;$('codexGauges').replaceChildren();if(!x){$('codexPlanName').textContent='데이터 없음';$('codexGauges').append(el('div','empty-state','Codex 한도 기록을 찾지 못했습니다.'));$('codexCaptureNote').textContent='';return}$('codexPlanName').textContent=x.plan?`${x.plan} 플랜`:'플랜 미확인';for(const[label,item]of[['5시간 한도',x.primary],['주간 한도',x.secondary]])if(item){const reset=item.resetsAt?`${relativeTime(item.resetsAt)} · ${dateTime(item.resetsAt)}`:'리셋 시각 없음';$('codexGauges').append(gauge(label,item.usedPercent,null,reset))}$('codexCaptureNote').textContent=`Codex CLI 공식 한도 · ${dateTime(x.capturedAt)} 측정`}
 
-// ---------- 렌더링 ----------
-function renderKPI() {
-  const map = [
-    ['today', 'kpiToday', 'kpiTodayCost'],
-    ['week', 'kpiWeek', 'kpiWeekCost'],
-    ['month', 'kpiMonth', 'kpiMonthCost'],
-    ['total', 'kpiTotal', 'kpiTotalCost'],
-  ];
-  for (const [key, valId, costId] of map) {
-    const v = pick(summary.kpi[key]);
-    document.getElementById(valId).textContent = fmtTokens(v.tokens) + ' 토큰';
-    document.getElementById(costId).textContent = '환산 비용 ' + fmtCost(v.cost);
-  }
-}
+function chartAvailable(){if(typeof Chart!=='undefined')return true;setPageStatus('Chart.js를 불러오지 못해 차트를 표시할 수 없습니다. 표와 요약 정보는 계속 사용할 수 있습니다.','error');return false}
+function filteredSeries(){return summary[period]||[]}
+function renderPeriodChart(){const series=filteredSeries(),total=sumRows(series),empty=total.tokens===0;$('periodEmpty').hidden=!empty;$('periodEmpty').textContent='선택한 기간에 사용량 데이터가 없습니다.';$('periodChart').hidden=empty;$('chartSummary').textContent=empty?'':`${period==='daily'?'최근 30일':period==='weekly'?'최근 12주':'최근 12개월'} 합계 ${fmtTokens(total.tokens)} 토큰 · ${fmtCost(total.cost)}. 빈 날짜도 시간 흐름에 포함됩니다.`;if(empty||!chartAvailable()){if(periodChart){periodChart.destroy();periodChart=null}return}const labels=series.map(d=>period==='monthly'?d.key:period==='weekly'?d.key.slice(5)+' 시작':d.key.slice(5)),value=(d,s)=>metric==='tokens'?d[s].tokens:d[s].cost,datasets=[];for(const s of['claude','codex'])if(sourceFilter==='all'||sourceFilter===s)datasets.push({label:sourceName(s),data:series.map(d=>value(d,s)),backgroundColor:COLORS[s],borderRadius:3,stack:'usage'});if(periodChart)periodChart.destroy();periodChart=new Chart($('periodChart'),{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,animation:reduceMotion?false:{duration:350},interaction:{mode:'index',intersect:false},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#a1a9b8',maxRotation:0,autoSkip:true,maxTicksLimit:innerWidth<640?6:12}},y:{stacked:true,beginAtZero:true,grid:{color:'#303746'},ticks:{color:'#a1a9b8',callback:v=>metric==='tokens'?fmtTokens(v):fmtCost(v)}}},plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>series[items[0].dataIndex].key,label:ctx=>`${ctx.dataset.label}: ${metric==='tokens'?fmtTokens(ctx.parsed.y)+' 토큰':fmtCost(ctx.parsed.y)}`,footer:items=>`합계: ${metric==='tokens'?fmtTokens(items.reduce((a,i)=>a+i.parsed.y,0))+' 토큰':fmtCost(items.reduce((a,i)=>a+i.parsed.y,0))}`}}}}})}
 
-function gaugeClass(pct, base) {
-  if (pct >= 90) return 'gauge-fill danger';
-  if (pct >= 70) return 'gauge-fill warn';
-  return 'gauge-fill ' + base;
-}
+function filteredModels(){return summary.models.filter(m=>sourceFilter==='all'||m.source===sourceFilter)}
+function modelRows(){return filteredModels().slice().sort((a,b)=>{const d=(a[sortKey]||0)-(b[sortKey]||0);return sortDir==='asc'?d:-d})}
+function renderModelChart(){const rows=filteredModels().slice().sort((a,b)=>b[metric==='tokens'?'tokens':'cost']-a[metric==='tokens'?'tokens':'cost']),key=metric==='tokens'?'tokens':'cost',total=rows.reduce((a,m)=>a+m[key],0),empty=total===0;$('modelEmpty').hidden=!empty;$('modelEmpty').textContent='표시할 모델 데이터가 없습니다.';$('modelChart').hidden=empty;$('donutTotal').textContent=key==='tokens'?fmtTokens(total):fmtCost(total);$('donutUnit').textContent=key==='tokens'?'전체 토큰':'환산 비용';$('modelLegend').replaceChildren();if(empty||!chartAvailable()){if(modelChart){modelChart.destroy();modelChart=null}return}const top=rows.slice(0,7),rest=rows.slice(7),labels=top.map(m=>m.model),data=top.map(m=>m[key]);if(rest.length){labels.push('기타');data.push(rest.reduce((a,m)=>a+m[key],0))}labels.forEach((name,i)=>{const li=el('li'),dot=el('span','legend-dot'),label=el('span','legend-name',name),value=el('span','legend-value',key==='tokens'?fmtTokens(data[i]):fmtCost(data[i]));dot.style.backgroundColor=COLORS.donut[i%COLORS.donut.length];label.title=name;li.append(dot,label,value);$('modelLegend').append(li)});if(modelChart)modelChart.destroy();modelChart=new Chart($('modelChart'),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:COLORS.donut,borderColor:'#141820',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',animation:reduceMotion?false:{duration:350},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${key==='tokens'?fmtTokens(ctx.parsed)+' 토큰':fmtCost(ctx.parsed)} (${(total?ctx.parsed/total*100:0).toFixed(1)}%)`}}}}})}
+function cell(text,className){return el('td',className,text)}
+function renderModelTable(){const tbody=document.querySelector('#modelTable tbody'),rows=modelRows();tbody.replaceChildren();for(const m of rows){const tr=el('tr'),model=cell(m.model),tool=cell('');model.title=m.model;tool.append(el('span',`badge ${m.source}`,sourceName(m.source)));tr.append(model,tool,cell(fmtNum(m.input),'num detail-col'),cell(fmtNum(m.output),'num detail-col'),cell(fmtNum(m.cacheRead),'num detail-col'),cell(fmtNum(m.cacheWrite),'num detail-col'),cell(fmtNum(m.tokens),'num'),cell(fmtCost(m.cost),'num'));tbody.append(tr)}$('tableSummary').textContent=rows.length?`${rows.length}개 모델 · ${sortKey==='cost'?'비용':'토큰'} ${sortDir==='desc'?'높은':'낮은'} 순`:'표시할 모델이 없습니다.';document.querySelectorAll('#modelTable th[aria-sort]').forEach(th=>{const btn=th.querySelector('button'),active=btn.dataset.sort===sortKey;th.setAttribute('aria-sort',active?(sortDir==='desc'?'descending':'ascending'):'none');btn.lastElementChild.textContent=active?(sortDir==='desc'?'↓':'↑'):'↕'})}
 
-function renderPlan() {
-  const c = summary.plan.claude;
-  document.getElementById('claudePlanName').textContent = c.plan ? `${c.plan} 플랜` : '플랜 미확인';
-  const bar5h = document.getElementById('claude5hBar');
-  bar5h.style.width = c.pct5h.toFixed(1) + '%';
-  bar5h.className = gaugeClass(c.pct5h, 'claude');
-  document.getElementById('claude5hDetail').textContent =
-    `${fmtTokens(c.last5hTokens)} / ${fmtTokens(c.limit5hTokens)} (${c.pct5h.toFixed(0)}%)`;
-  const bar7d = document.getElementById('claude7dBar');
-  bar7d.style.width = c.pct7d.toFixed(1) + '%';
-  bar7d.className = gaugeClass(c.pct7d, 'claude');
-  document.getElementById('claude7dDetail').textContent =
-    `${fmtTokens(c.last7dTokens)} / ${fmtTokens(c.limit7dTokens)} (${c.pct7d.toFixed(0)}%)`;
-  document.getElementById('claudeEstimateNote').textContent = c.limitIsEstimate
-    ? '※ 공식 한도가 로그에 없어 과거 관측 최대 사용량을 한도로 가정한 추정치입니다. config.json에서 한도를 직접 지정할 수 있습니다.'
-    : '한도: config.json 사용자 지정값';
-
-  const x = summary.plan.codex;
-  if (!x) {
-    document.getElementById('codexPlanName').textContent = '데이터 없음';
-    return;
-  }
-  document.getElementById('codexPlanName').textContent = x.plan ? `${x.plan} 플랜` : '플랜 미확인';
-  if (x.primary) {
-    const p = x.primary.usedPercent || 0;
-    const bar = document.getElementById('codexPrimaryBar');
-    bar.style.width = Math.min(100, p) + '%';
-    bar.className = gaugeClass(p, 'codex');
-    const reset = x.primary.resetsAt ? ` · ${fmtDateTime(x.primary.resetsAt)} 리셋` : '';
-    document.getElementById('codexPrimaryDetail').textContent = `${p.toFixed(1)}% 사용${reset}`;
-  }
-  if (x.secondary) {
-    const p = x.secondary.usedPercent || 0;
-    const bar = document.getElementById('codexSecondaryBar');
-    bar.style.width = Math.min(100, p) + '%';
-    bar.className = gaugeClass(p, 'codex');
-    const reset = x.secondary.resetsAt ? ` · ${fmtDateTime(x.secondary.resetsAt)} 리셋` : '';
-    document.getElementById('codexSecondaryDetail').textContent = `${p.toFixed(1)}% 사용${reset}`;
-  }
-  document.getElementById('codexCaptureNote').textContent =
-    `※ Codex CLI가 기록한 공식 한도 기준 (${fmtDateTime(x.capturedAt)} 측정)`;
-}
-
-function renderPeriodChart() {
-  const series = summary[period];
-  const labels = series.map((d) => {
-    if (period === 'monthly') return d.key;
-    if (period === 'weekly') return d.key.slice(5) + '주';
-    return d.key.slice(5);
-  });
-  const val = (d, src) => (metric === 'tokens' ? d[src].tokens : d[src].cost);
-
-  const datasets = [];
-  if (sourceFilter === 'all' || sourceFilter === 'claude') {
-    datasets.push({
-      label: 'Claude', data: series.map((d) => val(d, 'claude')),
-      backgroundColor: COLORS.claude, stack: 's', borderRadius: 3,
-    });
-  }
-  if (sourceFilter === 'all' || sourceFilter === 'codex') {
-    datasets.push({
-      label: 'Codex', data: series.map((d) => val(d, 'codex')),
-      backgroundColor: COLORS.codex, stack: 's', borderRadius: 3,
-    });
-  }
-
-  const fmt = metric === 'tokens' ? fmtTokens : fmtCost;
-  const cfg = {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { color: '#8b91a3' } },
-        y: {
-          stacked: true, grid: { color: '#2a2f3e' },
-          ticks: { color: '#8b91a3', callback: (v) => fmt(v) },
-        },
-      },
-      plugins: {
-        legend: { labels: { color: '#e8eaf0' } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
-            footer: (items) => '합계: ' + fmt(items.reduce((s, i) => s + i.parsed.y, 0)),
-          },
-        },
-      },
-    },
-  };
-
-  if (periodChart) { periodChart.destroy(); }
-  periodChart = new Chart(document.getElementById('periodChart'), cfg);
-}
-
-function filteredModels() {
-  return summary.models.filter((m) => sourceFilter === 'all' || m.source === sourceFilter);
-}
-
-function renderModelChart() {
-  const rows = filteredModels();
-  const top = rows.slice(0, 7);
-  const rest = rows.slice(7);
-  const labels = top.map((m) => m.model);
-  const data = top.map((m) => m.cost);
-  if (rest.length) {
-    labels.push('기타');
-    data.push(rest.reduce((s, m) => s + m.cost, 0));
-  }
-  const cfg = {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: COLORS.donut, borderColor: '#181b24', borderWidth: 2 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#e8eaf0', boxWidth: 12 } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtCost(ctx.parsed)}` } },
-      },
-    },
-  };
-  if (modelChart) modelChart.destroy();
-  modelChart = new Chart(document.getElementById('modelChart'), cfg);
-}
-
-function renderModelTable() {
-  const tbody = document.querySelector('#modelTable tbody');
-  tbody.innerHTML = '';
-  for (const m of filteredModels()) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${m.model}</td>
-      <td><span class="badge ${m.source}">${m.source === 'claude' ? 'Claude' : 'Codex'}</span></td>
-      <td class="num">${fmtNum(m.input)}</td>
-      <td class="num">${fmtNum(m.output)}</td>
-      <td class="num">${fmtNum(m.cacheRead)}</td>
-      <td class="num">${fmtNum(m.cacheWrite)}</td>
-      <td class="num">${fmtNum(m.tokens)}</td>
-      <td class="num">${fmtCost(m.cost)}</td>`;
-    tbody.appendChild(tr);
-  }
-}
-
-function renderAll() {
-  if (!summary) return;
-  renderKPI();
-  renderPlan();
-  renderPeriodChart();
-  renderModelChart();
-  renderModelTable();
-  document.getElementById('updatedAt').textContent =
-    '갱신: ' + new Date(summary.generatedAt).toLocaleTimeString('ko-KR');
-}
-
-// ---------- 데이터 로드 ----------
-async function load() {
-  try {
-    const res = await fetch('/api/summary');
-    summary = await res.json();
-    renderAll();
-  } catch (e) {
-    document.getElementById('status').textContent = '서버 연결 실패';
-  }
-}
-
-// ---------- 이벤트 ----------
-function bindSeg(id, onPick) {
-  document.getElementById(id).addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    for (const b of e.currentTarget.querySelectorAll('button')) b.classList.remove('active');
-    btn.classList.add('active');
-    onPick(btn.dataset);
-  });
-}
-
-bindSeg('sourceFilter', (d) => { sourceFilter = d.source; renderAll(); });
-bindSeg('periodTabs', (d) => { period = d.period; renderPeriodChart(); });
-bindSeg('metricTabs', (d) => { metric = d.metric; renderPeriodChart(); });
-
-// SSE 실시간 갱신
-function connectSSE() {
-  const es = new EventSource('/api/events');
-  es.onopen = () => {
-    const s = document.getElementById('status');
-    s.textContent = '실시간 연결됨';
-    s.classList.add('live');
-  };
-  es.onmessage = () => load();
-  es.onerror = () => {
-    const s = document.getElementById('status');
-    s.textContent = '재연결 중…';
-    s.classList.remove('live');
-  };
-}
-
-load();
-connectSSE();
+function renderAll(){if(!summary)return;renderKPI();renderPlan();renderPeriodChart();renderModelChart();renderModelTable();$('updatedAt').textContent=`마지막 갱신 ${new Date(summary.generatedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;document.body.classList.remove('is-loading')}
+function setPageStatus(message,type=''){$('pageStatus').textContent=message;$('pageStatus').className=`page-status ${type}`.trim()}
+function setConnection(text,state){$('status').textContent=text;$('status').dataset.state=state}
+async function load(){try{const res=await fetch('/api/summary',{headers:{Accept:'application/json'}});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();if(!data||!data.kpi||!Array.isArray(data.models))throw new Error('invalid response');summary=data;lastGood=data;setPageStatus('');renderAll()}catch(error){setConnection('서버 연결 오류','error');if(lastGood){summary=lastGood;setPageStatus('새 데이터를 받지 못했습니다. 마지막 정상 데이터를 표시합니다.','stale');renderAll()}else{document.body.classList.remove('is-loading');setPageStatus('사용량 데이터를 불러오지 못했습니다. 서버가 실행 중인지 확인해 주세요.','error')}}}
+function bindSeg(id,onPick){const root=$(id),buttons=[...root.querySelectorAll('button')];root.addEventListener('click',e=>{const btn=e.target.closest('button');if(btn)select(btn)});root.addEventListener('keydown',e=>{const i=buttons.indexOf(document.activeElement);if(i<0||!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();select(buttons[(i+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length]);document.activeElement.blur();buttons.find(b=>b.classList.contains('active')).focus()});function select(btn){buttons.forEach(b=>{const active=b===btn;b.classList.toggle('active',active);b.setAttribute('aria-checked',String(active));b.tabIndex=active?0:-1});onPick(btn.dataset)}}
+bindSeg('sourceFilter',d=>{sourceFilter=d.source;renderAll()});bindSeg('periodTabs',d=>{period=d.period;renderPeriodChart()});bindSeg('metricTabs',d=>{metric=d.metric;renderPeriodChart();renderModelChart()});
+document.querySelector('#modelTable thead').addEventListener('click',e=>{const btn=e.target.closest('button[data-sort]');if(!btn)return;sortDir=sortKey===btn.dataset.sort&&sortDir==='desc'?'asc':'desc';sortKey=btn.dataset.sort;renderModelTable()});
+function connectSSE(){if(!('EventSource'in window)){setConnection('실시간 미지원','error');setPageStatus('이 브라우저에서는 실시간 갱신을 지원하지 않습니다. 수동 새로고침으로 최신 데이터를 확인해 주세요.','stale');return}const es=new EventSource('/api/events');es.onopen=()=>setConnection('실시간 연결됨','live');es.onmessage=()=>load();es.onerror=()=>{setConnection('재연결 중…','retry');if(lastGood)setPageStatus('실시간 연결을 다시 시도하는 중입니다. 마지막 정상 데이터를 표시합니다.','stale')}}
+load();connectSSE();

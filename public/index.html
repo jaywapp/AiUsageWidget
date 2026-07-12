@@ -1,111 +1,52 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 토큰 사용량 대시보드</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
-<body>
-  <header>
-    <div class="title">
-      <h1>AI 토큰 사용량 대시보드</h1>
-      <span id="status" class="status">연결 중…</span>
-    </div>
-    <div class="controls">
-      <div class="seg" id="sourceFilter">
-        <button data-source="all" class="active">전체</button>
-        <button data-source="claude">Claude</button>
-        <button data-source="codex">Codex</button>
-      </div>
-      <span id="updatedAt" class="muted"></span>
+<body class="is-loading">
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand"><h1>AI 사용량</h1><p>Claude Code + Codex CLI · 로컬 데이터</p></div>
+      <div class="connection" aria-live="polite"><span id="status" class="status" data-state="connecting">연결 중…</span><span id="updatedAt">아직 갱신되지 않음</span></div>
+      <div class="global-filter"><span id="sourceFilterLabel">대시보드 전체 필터</span><div class="seg" id="sourceFilter" role="radiogroup" aria-labelledby="sourceFilterLabel"><button type="button" role="radio" aria-checked="true" data-source="all" class="active">전체</button><button type="button" role="radio" aria-checked="false" data-source="claude">Claude</button><button type="button" role="radio" aria-checked="false" data-source="codex">Codex</button></div></div>
     </div>
   </header>
 
-  <main>
-    <!-- KPI 카드 -->
-    <section class="cards" id="kpiCards">
-      <div class="card"><div class="card-label">오늘</div><div class="card-value" id="kpiToday">-</div><div class="card-sub" id="kpiTodayCost"></div></div>
-      <div class="card"><div class="card-label">이번 주</div><div class="card-value" id="kpiWeek">-</div><div class="card-sub" id="kpiWeekCost"></div></div>
-      <div class="card"><div class="card-label">이번 달</div><div class="card-value" id="kpiMonth">-</div><div class="card-sub" id="kpiMonthCost"></div></div>
-      <div class="card"><div class="card-label">누적 (전체 기간)</div><div class="card-value" id="kpiTotal">-</div><div class="card-sub" id="kpiTotalCost"></div></div>
+  <main id="main">
+    <div id="pageStatus" class="page-status" role="status" aria-live="polite">사용량 데이터를 불러오는 중입니다.</div>
+
+    <section aria-labelledby="overviewTitle">
+      <div class="section-heading"><div><p class="eyebrow">Overview</p><h2 id="overviewTitle">핵심 사용량</h2></div><p>토큰과 API 환산 비용을 함께 표시합니다.</p></div>
+      <div class="cards" id="kpiCards" aria-busy="true"></div>
     </section>
 
-    <!-- 플랜 현황 -->
-    <section class="panel">
-      <h2>플랜 대비 사용 현황</h2>
+    <section class="panel" aria-labelledby="planTitle">
+      <div class="section-heading"><div><p class="eyebrow">Limits</p><h2 id="planTitle">플랜 잔여량</h2></div><p>남은 한도를 우선 표시합니다.</p></div>
       <div class="plan-grid">
-        <div class="plan-box">
-          <div class="plan-head">
-            <span class="badge claude">Claude</span>
-            <span id="claudePlanName" class="plan-name"></span>
-          </div>
-          <div class="gauge-row">
-            <div class="gauge-label">최근 5시간 <span class="muted" id="claude5hDetail"></span></div>
-            <div class="gauge"><div class="gauge-fill claude" id="claude5hBar"></div></div>
-          </div>
-          <div class="gauge-row">
-            <div class="gauge-label">최근 7일 <span class="muted" id="claude7dDetail"></span></div>
-            <div class="gauge"><div class="gauge-fill claude" id="claude7dBar"></div></div>
-          </div>
-          <div class="muted small" id="claudeEstimateNote"></div>
-        </div>
-        <div class="plan-box">
-          <div class="plan-head">
-            <span class="badge codex">Codex</span>
-            <span id="codexPlanName" class="plan-name"></span>
-          </div>
-          <div class="gauge-row">
-            <div class="gauge-label">5시간 한도 <span class="muted" id="codexPrimaryDetail"></span></div>
-            <div class="gauge"><div class="gauge-fill codex" id="codexPrimaryBar"></div></div>
-          </div>
-          <div class="gauge-row">
-            <div class="gauge-label">주간 한도 <span class="muted" id="codexSecondaryDetail"></span></div>
-            <div class="gauge"><div class="gauge-fill codex" id="codexSecondaryBar"></div></div>
-          </div>
-          <div class="muted small" id="codexCaptureNote"></div>
-        </div>
+        <article class="plan-box" id="claudePlan"><div class="plan-head"><div><span class="badge claude">Claude</span><span id="claudePlanName" class="plan-name">확인 중</span></div><span class="limit-kind estimate">추정 한도</span></div><div id="claudeGauges"></div><details><summary>추정 한도 안내</summary><p id="claudeEstimateNote"></p></details></article>
+        <article class="plan-box" id="codexPlan"><div class="plan-head"><div><span class="badge codex">Codex</span><span id="codexPlanName" class="plan-name">확인 중</span></div><span class="limit-kind official">공식 한도</span></div><div id="codexGauges"></div><p class="note" id="codexCaptureNote"></p></article>
       </div>
     </section>
 
-    <!-- 차트 -->
-    <section class="panel">
-      <div class="panel-head">
-        <h2>기간별 사용량</h2>
-        <div class="seg" id="periodTabs">
-          <button data-period="daily" class="active">일별 (30일)</button>
-          <button data-period="weekly">주별 (12주)</button>
-          <button data-period="monthly">월별 (12개월)</button>
-        </div>
-        <div class="seg" id="metricTabs">
-          <button data-metric="tokens" class="active">토큰</button>
-          <button data-metric="cost">비용($)</button>
-        </div>
-      </div>
-      <div class="chart-wrap"><canvas id="periodChart"></canvas></div>
+    <section class="panel" aria-labelledby="usageTitle">
+      <div class="section-heading chart-heading"><div><p class="eyebrow">Timeline</p><h2 id="usageTitle">기간별 사용량</h2></div><div class="chart-controls"><div class="control-group"><span id="periodLabel">기간</span><div class="seg" id="periodTabs" role="radiogroup" aria-labelledby="periodLabel"><button type="button" role="radio" aria-checked="true" data-period="daily" class="active">일별 30일</button><button type="button" role="radio" aria-checked="false" data-period="weekly">주별 12주</button><button type="button" role="radio" aria-checked="false" data-period="monthly">월별 12개월</button></div></div><div class="control-group"><span id="metricLabel">측정 단위</span><div class="seg" id="metricTabs" role="radiogroup" aria-labelledby="metricLabel"><button type="button" role="radio" aria-checked="true" data-metric="tokens" class="active">토큰</button><button type="button" role="radio" aria-checked="false" data-metric="cost">비용</button></div></div></div></div>
+      <p id="chartSummary" class="chart-summary"></p><div id="periodEmpty" class="empty-state" hidden></div><div class="chart-wrap"><canvas id="periodChart" aria-label="기간별 Claude와 Codex 사용량 막대 차트" role="img"></canvas></div>
     </section>
 
-    <div class="two-col">
-      <section class="panel">
-        <h2>모델별 비중 (비용 기준)</h2>
-        <div class="chart-wrap donut"><canvas id="modelChart"></canvas></div>
-      </section>
-      <section class="panel">
-        <h2>모델별 상세</h2>
-        <div class="table-wrap">
-          <table id="modelTable">
-            <thead>
-              <tr><th>모델</th><th>도구</th><th class="num">입력</th><th class="num">출력</th><th class="num">캐시 읽기</th><th class="num">캐시 쓰기</th><th class="num">합계</th><th class="num">환산 비용</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div class="muted small">※ 환산 비용은 API 종량제 기준 참고치입니다 (구독 플랜 실청구액 아님).</div>
-      </section>
-    </div>
+    <section aria-labelledby="modelTitle">
+      <div class="section-heading"><div><p class="eyebrow">Models</p><h2 id="modelTitle">모델 분석</h2></div><p>사용량을 만든 모델과 도구를 확인합니다.</p></div>
+      <div class="model-grid">
+        <article class="panel model-share"><h3>모델별 비중</h3><div id="modelEmpty" class="empty-state" hidden></div><div class="chart-wrap donut"><canvas id="modelChart" aria-label="모델별 사용량 비중 도넛 차트" role="img"></canvas><div class="donut-total" aria-hidden="true"><strong id="donutTotal">-</strong><span id="donutUnit">환산 비용</span></div></div><ul id="modelLegend" class="model-legend"></ul></article>
+        <article class="panel model-detail"><div class="table-title"><h3>모델별 상세</h3><p id="tableSummary"></p></div><div class="table-wrap" tabindex="0" aria-label="모델 상세 표, 가로로 스크롤 가능"><table id="modelTable"><thead><tr><th scope="col">모델</th><th scope="col">도구</th><th scope="col" class="num detail-col">입력</th><th scope="col" class="num detail-col">출력</th><th scope="col" class="num detail-col">캐시 읽기</th><th scope="col" class="num detail-col">캐시 쓰기</th><th scope="col" class="num" aria-sort="none"><button type="button" data-sort="tokens">합계 <span aria-hidden="true">↕</span></button></th><th scope="col" class="num" aria-sort="descending"><button type="button" data-sort="cost">비용 <span aria-hidden="true">↓</span></button></th></tr></thead><tbody></tbody></table></div><p class="note">환산 비용은 API 종량제 기준 참고치이며 실제 구독 청구액이 아닙니다.</p></article>
+      </div>
+    </section>
   </main>
-
+  <noscript>이 대시보드는 JavaScript가 필요합니다.</noscript>
   <script src="app.js"></script>
 </body>
 </html>
