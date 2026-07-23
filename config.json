@@ -1,5 +1,6 @@
 {
   "port": 4789,
+  "feedbackEndpoint": null,
   "claudePlan": {
     "name": null,
     "limit5hTokens": null,

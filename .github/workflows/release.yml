@@ -5,11 +5,17 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -17,53 +23,142 @@ jobs:
         with:
           node-version: 22
 
+      - name: Read and validate version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content widget/AiUsageWidget/AiUsageWidget.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid project version: $version"
+          }
+          if ($packageVersion -ne $version) {
+            throw "Version mismatch: project=$version package=$packageVersion"
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Ensure version tag does not already exist
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:RELEASE_TAG" *> $null
+          $tagExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($tagExists) {
+            throw "Tag $env:RELEASE_TAG already exists."
+          }
+
       - name: Run server tests
-        run: node --test test/store.test.js
+        run: npm test
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
+      - name: Restore widget
+        run: dotnet restore widget/AiUsageWidget/AiUsageWidget.csproj -r win-x64
+
+      - name: Build widget
+        run: dotnet build widget/AiUsageWidget/AiUsageWidget.csproj -c Release -r win-x64 --no-restore
+
       - name: Publish widget (self-contained single exe)
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
         run: >
           dotnet publish widget/AiUsageWidget/AiUsageWidget.csproj
-          -c Release -r win-x64 --self-contained true
+          -c Release -r win-x64 --self-contained true --no-restore
+          -p:Version=${{ env.APP_VERSION }}
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish/widget
 
+      - name: Prepare release configuration
+        shell: pwsh
+        env:
+          FEEDBACK_ENDPOINT: ${{ vars.FEEDBACK_ENDPOINT }}
+        run: |
+          $endpoint = $null
+          if (-not [Uri]::TryCreate(
+            $env:FEEDBACK_ENDPOINT,
+            [UriKind]::Absolute,
+            [ref]$endpoint
+          ) -or $endpoint.Scheme -ne "https" -or $endpoint.AbsolutePath -ne "/api/feedback") {
+            throw "FEEDBACK_ENDPOINT must be an HTTPS URL ending in /api/feedback."
+          }
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $config = Get-Content config.json -Raw | ConvertFrom-Json
+          $config.feedbackEndpoint = $endpoint.AbsoluteUri
+          $config | ConvertTo-Json -Depth 10 | Set-Content dist/config.json -Encoding utf8
+
       - name: Package release zip
         shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
           $stage = "dist/AiUsageWidget"
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item publish/widget/AiUsageWidget.exe $stage
-          Copy-Item server.js, config.json, package.json, start.cmd, README.md $stage
+          Copy-Item server.js, package.json, start.cmd, README.md $stage
+          Copy-Item dist/config.json $stage
           Copy-Item lib, public -Recurse -Destination $stage
-          Compress-Archive -Path "$stage/*" -DestinationPath "dist/AiUsageWidget-win-x64.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath "dist/AiUsageWidget-$env:APP_VERSION-win-x64.zip"
 
       - name: Build installer (Inno Setup)
         shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=1.0.${{ github.run_number }} installer\setup.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$env:APP_VERSION" installer\setup.iss
+
+      - name: Verify release artifacts
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $artifacts = @(
+            "dist/AiUsageWidget-$env:APP_VERSION-setup.exe",
+            "dist/AiUsageWidget-$env:APP_VERSION-win-x64.zip"
+          )
+          foreach ($artifact in $artifacts) {
+            if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) {
+              throw "Missing release artifact: $artifact"
+            }
+            if ((Get-Item -LiteralPath $artifact).Length -eq 0) {
+              throw "Empty release artifact: $artifact"
+            }
+          }
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: AI Usage Widget v1.0.${{ github.run_number }}
-          files: |
-            dist/AiUsageWidget-Setup.exe
-            dist/AiUsageWidget-win-x64.zip
-          body: |
-            ## AI 토큰 사용량 위젯 + 대시보드 (win-x64)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          @"
+          ## AI 토큰 사용량 위젯 + 대시보드 (win-x64)
 
-            ### 설치 (권장)
-            **`AiUsageWidget-Setup.exe`** 실행 — 관리자 권한 불필요, 설치 중 "Start automatically with Windows" 체크 시 부팅 자동 실행.
+          ### 설치 (권장)
+          ``AiUsageWidget-$env:APP_VERSION-setup.exe``를 실행하세요. 관리자 권한은 필요하지 않습니다.
 
-            ### 포터블
-            `AiUsageWidget-win-x64.zip` 압축 해제 후 `AiUsageWidget.exe` 실행.
+          ### 포터블
+          ``AiUsageWidget-$env:APP_VERSION-win-x64.zip``을 압축 해제한 뒤 ``AiUsageWidget.exe``를 실행하세요.
 
-            - 위젯은 .NET 런타임 불필요 (self-contained 단일 exe)
-            - 위젯이 같은 폴더의 `server.js`(대시보드 서버)를 자동 기동 — **Node.js 18+ 필요**
-            - 전체 대시보드: http://localhost:4789
+          - 위젯은 .NET 런타임이 필요 없는 self-contained 단일 실행 파일입니다.
+          - 대시보드 서버 실행에는 Node.js 18 이상이 필요합니다.
+          - 전체 대시보드: http://localhost:4789
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+          gh release create $env:RELEASE_TAG `
+            "dist/AiUsageWidget-$env:APP_VERSION-setup.exe" `
+            "dist/AiUsageWidget-$env:APP_VERSION-win-x64.zip" `
+            --repo $env:GITHUB_REPOSITORY `
+            --title "AI Usage Widget v$env:APP_VERSION" `
+            --notes-file release-notes.md

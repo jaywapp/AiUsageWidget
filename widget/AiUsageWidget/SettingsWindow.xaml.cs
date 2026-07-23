@@ -58,4 +58,9 @@ public partial class SettingsWindow : Window
         DialogResult = false;
         Close();
     }
+
+    private void Feedback_Click(object sender, RoutedEventArgs e)
+    {
+        new FeedbackWindow { Owner = this }.ShowDialog();
+    }
 }

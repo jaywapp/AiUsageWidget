@@ -1,0 +1,52 @@
+<Window x:Class="AiUsageWidget.FeedbackWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="제보" Width="430" Height="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False">
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Text="제보" FontSize="20" FontWeight="Bold"/>
+    <TextBlock Grid.Row="1" Margin="0,6,0,14" TextWrapping="Wrap"
+               Text="오류나 개선 의견을 프로젝트 GitHub Issues에 등록합니다. 앱 버전과 Windows 플랫폼 정보만 함께 전송되며 로그·경로·계정 정보는 보내지 않습니다."/>
+
+    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+      <Label Target="{Binding ElementName=TitleBox}" Content="제목 (필수)" Padding="0,0,0,4"/>
+      <TextBox x:Name="TitleBox" MaxLength="120"
+               AutomationProperties.Name="제보 제목" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="3" Grid.RowSpan="2" Margin="0,0,0,10">
+      <Label Target="{Binding ElementName=DescriptionBox}" Content="내용 (필수)" Padding="0,0,0,4"/>
+      <TextBox x:Name="DescriptionBox" Height="150" MaxLength="6000"
+               AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+               AutomationProperties.Name="제보 내용"/>
+    </StackPanel>
+
+    <StackPanel Grid.Row="5" Margin="0,0,0,10">
+      <Label Target="{Binding ElementName=ContactBox}" Content="연락처 (선택)" Padding="0,0,0,4"/>
+      <TextBox x:Name="ContactBox" MaxLength="200"
+               AutomationProperties.Name="선택 연락처"/>
+    </StackPanel>
+
+    <TextBlock x:Name="StatusText" Grid.Row="6" Margin="0,0,0,12"
+               TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+
+    <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="SubmitButton" Content="보내기" Width="90" Margin="0,0,8,0"
+              IsDefault="True" Click="Submit_Click"
+              AutomationProperties.Name="제보 보내기"/>
+      <Button Content="닫기" Width="90" IsCancel="True"/>
+    </StackPanel>
+  </Grid>
+</Window>
