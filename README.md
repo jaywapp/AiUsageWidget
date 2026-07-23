@@ -56,6 +56,7 @@ dotnet build -c Release
 ```jsonc
 {
   "port": 4789,
+  "feedbackEndpoint": null,  // 릴리스 빌드에서 Vercel 제보 함수 URL 주입
   "claudePlan": {
     "name": null,             // 표시용 플랜명 (null이면 credentials에서 자동 감지)
     "limit5hTokens": null,    // 5시간 한도 토큰 수 직접 지정 (null이면 관측 최대치 추정)
@@ -67,6 +68,28 @@ dotnet build -c Release
 }
 ```
 
+## 제보
+
+WPF 위젯의 설정 창에서 **제보**를 선택하면 제목·내용·선택 연락처를 프로젝트 GitHub Issues로 보낼 수 있습니다. 전송 전에 앱 버전과 Windows 플랫폼 정보가 표시되며 로그, 로컬 경로, 계정 정보는 첨부하지 않습니다.
+
+클라이언트는 `config.json`의 `feedbackEndpoint`에 설정된 HTTPS 중계 함수만 호출합니다. 중계 함수는 대상 저장소를 `jaywapp/AiUsageWidget`으로 고정하고 제목에 `[제보]`를 붙이며 `제보` 라벨을 강제합니다. 입력 길이 제한, 허니팟, 작업 증명, 요청 속도 제한, 허용 Origin 검사를 적용합니다.
+
+### Vercel 제보 중계 배포
+
+Vercel에는 로컬 대시보드가 아니라 `api/feedback.js` 함수만 배포합니다. 다음 설정이 필요합니다.
+
+- GitHub Actions Secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- GitHub Actions Variable: `FEEDBACK_ENDPOINT` — 프로덕션 HTTPS URL이며 `/api/feedback`으로 끝나야 함
+- Vercel 서버 환경 변수: `GITHUB_ISSUES_TOKEN` — 이 저장소의 Issues 쓰기만 허용하는 최소 권한 토큰
+- 선택 Vercel 환경 변수: `ALLOWED_ORIGINS` — 브라우저 호출을 허용할 Origin의 쉼표 구분 목록
+- 저장소의 `제보` 라벨은 최초 배포 전에 생성
+
+Vercel Git Integration이 활성화되어 있으면 GitHub Actions와 같은 `main` 커밋을 중복 배포하지 않도록 Git Integration의 프로덕션 자동 배포를 비활성화해야 합니다.
+
+### 대시보드가 로컬 전용인 이유
+
+대시보드 서버는 사용자 PC의 `~/.claude/projects`, `~/.codex/sessions`, `~/.claude/.credentials.json`을 직접 읽습니다. Vercel 런타임은 이 로컬 파일에 접근할 수 없으므로 대시보드 자체를 호스팅하면 핵심 기능이 동작하지 않습니다. 원격 대시보드가 필요하면 별도의 로컬 수집기, 인증, 원격 저장소 설계를 먼저 결정해야 합니다.
+
 ## 메모
 
 - 비용은 **API 종량제 환산 참고치**입니다 (구독 플랜 실청구액 아님).
@@ -76,5 +99,5 @@ dotnet build -c Release
 ## 테스트
 
 ```powershell
-node --test test\store.test.js
+npm test
 ```

@@ -18,7 +18,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=AiUsageWidget-Setup
+OutputBaseFilename=AiUsageWidget-{#MyAppVersion}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -36,7 +36,7 @@ Source: "..\publish\widget\AiUsageWidget.exe"; DestDir: "{app}"; Flags: ignoreve
 Source: "..\server.js"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\package.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
+Source: "..\dist\config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
 Source: "..\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs
 Source: "..\public\*"; DestDir: "{app}\public"; Flags: ignoreversion recursesubdirs
 

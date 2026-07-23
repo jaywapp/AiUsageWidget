@@ -1,7 +1,7 @@
 <Window x:Class="AiUsageWidget.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="위젯 설정" Width="270" Height="252"
+        Title="위젯 설정" Width="270" Height="292"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False" Topmost="True">
@@ -70,6 +70,9 @@
           <ColumnDefinition Width="8"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
+        <Button x:Name="FeedbackButton" Grid.Column="0" Content="제보" Click="Feedback_Click"
+                HorizontalAlignment="Left" AutomationProperties.Name="제보 창 열기"
+                ToolTip="오류나 개선 의견을 GitHub Issues로 보냅니다."/>
         <Button x:Name="OkButton" Grid.Column="1" Content="확인" Click="Ok_Click" Background="#D97757"/>
         <Button x:Name="CancelButton" Grid.Column="3" Content="취소" Click="Cancel_Click"/>
       </Grid>
