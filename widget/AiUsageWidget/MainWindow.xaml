@@ -4,80 +4,79 @@
         Title="AI 사용량 위젯" Width="232" Height="178" MinWidth="170" MinHeight="140"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="CanResize" ShowActivated="False">
-  <Border Background="#F2141621" CornerRadius="12" BorderBrush="#2A2F3E" BorderThickness="1" Padding="13,10">
+  <Border Background="#F20F1219" CornerRadius="14" BorderBrush="#343B4A" BorderThickness="1" Padding="12,9">
     <Grid>
       <Viewbox Stretch="Uniform">
-        <StackPanel Width="206">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="오늘 AI 사용량" FontWeight="Bold" FontSize="12" Foreground="#E8EAF0"/>
-        <TextBlock x:Name="LiveText" Grid.Column="1" Text="…" FontSize="9.5" Foreground="#8B91A3" VerticalAlignment="Center"/>
-      </Grid>
+        <StackPanel Width="208">
+          <Grid Margin="1,0,1,7">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="AI 사용량" FontWeight="SemiBold" FontSize="11.5" Foreground="#F1F3F7"/>
+              <TextBlock Text="LOCAL MONITOR" FontWeight="Bold" FontSize="6.5" Foreground="#6F798B"/>
+            </StackPanel>
+            <Border Grid.Column="1" Background="#18251F" BorderBrush="#285C42" BorderThickness="1" CornerRadius="7" Padding="6,2" VerticalAlignment="Center">
+              <TextBlock x:Name="LiveText" Text="연결 중" FontSize="8" FontWeight="SemiBold" Foreground="#58CF8B"/>
+            </Border>
+          </Grid>
 
-      <Grid Margin="0,5,0,7">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock x:Name="TodayText" Grid.Column="0" Text="-" FontSize="19" FontWeight="Bold" Foreground="#E8EAF0"/>
-        <TextBlock x:Name="CostText" Grid.Column="1" Text="-" FontSize="11" Foreground="#8B91A3" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
-      </Grid>
+          <Border Background="#181D27" BorderBrush="#303746" BorderThickness="1" CornerRadius="9" Padding="10,6" Margin="0,0,0,7">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="오늘 사용량" FontSize="8" Foreground="#929BAC"/>
+                <TextBlock x:Name="TodayText" Text="-" FontSize="18" FontWeight="Bold" Foreground="#F1F3F7"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                <TextBlock Text="API 환산" FontSize="7.5" Foreground="#737D8F" HorizontalAlignment="Right"/>
+                <TextBlock x:Name="CostText" Text="-" FontSize="10.5" FontWeight="SemiBold" Foreground="#C5CAD4" HorizontalAlignment="Right"/>
+              </StackPanel>
+            </Grid>
+          </Border>
 
-      <Grid Margin="0,1,0,1">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="Claude 5시간" FontSize="9.5" Foreground="#8B91A3"/>
-        <TextBlock x:Name="C5Pct" Grid.Column="1" Text="-" FontSize="9.5" Foreground="#E8EAF0"/>
-      </Grid>
-      <Border Background="#0C0E14" CornerRadius="2" Height="4" Margin="0,1,0,4">
-        <Border x:Name="C5Bar" Background="#D97757" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/>
-      </Border>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="7"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-      <Grid Margin="0,1,0,1">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="Claude 7일" FontSize="9.5" Foreground="#8B91A3"/>
-        <TextBlock x:Name="C7Pct" Grid.Column="1" Text="-" FontSize="9.5" Foreground="#E8EAF0"/>
-      </Grid>
-      <Border Background="#0C0E14" CornerRadius="2" Height="4" Margin="0,1,0,4">
-        <Border x:Name="C7Bar" Background="#D97757" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/>
-      </Border>
+            <Border Grid.Column="0" Background="#181D27" BorderBrush="#3D302E" BorderThickness="1" CornerRadius="8" Padding="8,6">
+              <StackPanel>
+                <Grid Margin="0,0,0,4">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="Claude" FontSize="9" FontWeight="Bold" Foreground="#E58A6C"/>
+                  <TextBlock Grid.Column="1" Text="추정" FontSize="6.8" Foreground="#8C756E" VerticalAlignment="Center"/>
+                </Grid>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="5시간" FontSize="7.5" Foreground="#8E97A8"/><TextBlock x:Name="C5Pct" Grid.Column="1" Text="-" FontSize="8" FontWeight="SemiBold" Foreground="#F1F3F7"/></Grid>
+                <Border Background="#090B10" CornerRadius="2" Height="4" Margin="0,2,0,4"><Border x:Name="C5Bar" Background="#E07A58" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/></Border>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="7일" FontSize="7.5" Foreground="#8E97A8"/><TextBlock x:Name="C7Pct" Grid.Column="1" Text="-" FontSize="8" FontWeight="SemiBold" Foreground="#F1F3F7"/></Grid>
+                <Border Background="#090B10" CornerRadius="2" Height="4" Margin="0,2,0,0"><Border x:Name="C7Bar" Background="#E07A58" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/></Border>
+              </StackPanel>
+            </Border>
 
-      <Grid Margin="0,1,0,1">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="Codex 5시간" FontSize="9.5" Foreground="#8B91A3"/>
-        <TextBlock x:Name="X5Pct" Grid.Column="1" Text="-" FontSize="9.5" Foreground="#E8EAF0"/>
-      </Grid>
-      <Border Background="#0C0E14" CornerRadius="2" Height="4" Margin="0,1,0,4">
-        <Border x:Name="X5Bar" Background="#4F9CF9" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/>
-      </Border>
-
-      <Grid Margin="0,1,0,1">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="Codex 주간" FontSize="9.5" Foreground="#8B91A3"/>
-        <TextBlock x:Name="X7Pct" Grid.Column="1" Text="-" FontSize="9.5" Foreground="#E8EAF0"/>
-      </Grid>
-      <Border Background="#0C0E14" CornerRadius="2" Height="4" Margin="0,1,0,0">
-        <Border x:Name="X7Bar" Background="#4F9CF9" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/>
-      </Border>
+            <Border Grid.Column="2" Background="#181D27" BorderBrush="#293B50" BorderThickness="1" CornerRadius="8" Padding="8,6">
+              <StackPanel>
+                <Grid Margin="0,0,0,4">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="Codex" FontSize="9" FontWeight="Bold" Foreground="#6FB3FF"/>
+                  <TextBlock Grid.Column="1" Text="공식" FontSize="6.8" Foreground="#7189A3" VerticalAlignment="Center"/>
+                </Grid>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="5시간" FontSize="7.5" Foreground="#8E97A8"/><TextBlock x:Name="X5Pct" Grid.Column="1" Text="-" FontSize="8" FontWeight="SemiBold" Foreground="#F1F3F7"/></Grid>
+                <Border Background="#090B10" CornerRadius="2" Height="4" Margin="0,2,0,4"><Border x:Name="X5Bar" Background="#5AA7FF" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/></Border>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="주간" FontSize="7.5" Foreground="#8E97A8"/><TextBlock x:Name="X7Pct" Grid.Column="1" Text="-" FontSize="8" FontWeight="SemiBold" Foreground="#F1F3F7"/></Grid>
+                <Border Background="#090B10" CornerRadius="2" Height="4" Margin="0,2,0,0"><Border x:Name="X7Bar" Background="#5AA7FF" CornerRadius="2" Height="4" Width="0" HorizontalAlignment="Left"/></Border>
+              </StackPanel>
+            </Border>
+          </Grid>
         </StackPanel>
       </Viewbox>
-      <TextBlock Text="◢" FontSize="11" Foreground="#3A4054" Cursor="SizeNWSE"
-                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-4"
-                 MouseLeftButtonDown="ResizeGrip_MouseLeftButtonDown"/>
+      <TextBlock Text="◢" FontSize="10" Foreground="#485164" Cursor="SizeNWSE" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-5" MouseLeftButtonDown="ResizeGrip_MouseLeftButtonDown"/>
     </Grid>
   </Border>
 </Window>
