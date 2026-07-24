@@ -15,7 +15,6 @@ namespace AiUsageWidget;
 public partial class MainWindow : Window
 {
     private const int Port = 4789;
-    private const double BarWidth = 206; // Viewbox 내부 디자인 폭 (StackPanel Width와 일치)
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(3) };
 
@@ -287,7 +286,7 @@ public partial class MainWindow : Window
             if (_tray != null)
                 _tray.Text = Truncate($"AI 사용량 — 이번 달 {FmtTokens(monthTokens)} (${monthCost:N0})", 63);
 
-            LiveText.Text = DateTime.Now.ToString("HH:mm");
+            LiveText.Text = $"● {DateTime.Now:HH:mm}";
             LiveText.Foreground = BrGreen;
         }
         catch
@@ -302,10 +301,11 @@ public partial class MainWindow : Window
 
     private void SetGauge(System.Windows.Controls.Border bar, System.Windows.Controls.TextBlock pctText, Brush baseBrush, double pct)
     {
-        var p = Math.Clamp(pct, 0, 100);
-        bar.Width = BarWidth * p / 100;
+        var p = double.IsFinite(pct) ? Math.Clamp(pct, 0, 100) : 0;
+        var trackWidth = (bar.Parent as FrameworkElement)?.ActualWidth ?? 0;
+        bar.Width = trackWidth * p / 100;
         bar.Background = p >= 90 ? BrDanger : p >= 70 ? BrWarn : baseBrush;
-        pctText.Text = $"{p:N0}%";
+        pctText.Text = $"{100 - p:N0}% 남음";
     }
 
     private static string FmtTokens(double n)
